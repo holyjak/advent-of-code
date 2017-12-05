@@ -98,41 +98,84 @@
   (is (= 31 (solve-part-1 1024))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; PART 2
-;
-;(with-test
-;  (defn position [loc]
-;   (let [subsquares (get-subsquares loc)
-;         n (count subsquares)
-;         dist-left (- loc (or (last subsquares) 0))
-;         side (side-len n)
-;         sideways (side-dist side dist-left)
-;         max-dist (int (/ side 2))
-;         first? (= 1 dist-left)
-;         last? (> (count (get-subsquares (inc loc)))
-;                  n)
-;         pos (case (- max-dist sideways)
-;               0 :corner
-;               1 :next2corner
-;               :inside)]
-;     (cond-> #{pos}
-;             first? (conj :first)
-;             last? (conj :last))))
-;  (are [loc _ pos] (= pos (position loc))
-;                   1 :-> #{:corner :first :last}
-;                   2 :-> #{:next2corner :first}
-;                   3 :-> #{:corner}
-;                   4 :-> #{:next2corner}
-;                   5 :-> #{:corner}
-;                   6 :-> #{:next2corner}
-;                   9 :-> #{:corner :last}
-;                   10 :-> #{:next2corner :first}
-;                   11 :-> #{:inside}
-;                   12 :-> #{:next2corner}
-;                   13 :-> #{:corner}
-;                   14 :-> #{:next2corner}
-;                   15 :-> #{:inside}
-;                   17 :-> #{:corner}
-;                   21 :-> #{:corner}))
+(defn- ->kwd [num]
+  (keyword (str num)))
+
+(with-test
+  (defn- side-nr
+    "Side this index is on (0 ... 3). Index 0 is at the initial corner of side 0,
+     i.e. the first location in each square has index 1 (as it is next to the corner).
+     Each side has (len - 1) elements (corners belong to the next side)"
+    [side-len zero-based-index]
+   (int (mod
+          (/ zero-based-index
+             (max (dec side-len) 1))                                ;; because corner is shared by 2 sides
+          4)))
+  (are [side idx _ nr] (= nr (side-nr side idx))
+                       3 0 :-> 0
+                       3 1 :-> 0
+                       3 2 :-> 1
+                       3 3 :-> 1
+                       3 4 :-> 2
+                       3 5 :-> 2
+                       3 6 :-> 3
+                       3 7 :-> 3
+                       3 8 :-> 0                            ;; wrap around
+                       5 1 #_10 :-> 0
+                       5 2 #_11 :-> 0
+                       5 4 #_13 :-> 1
+                       5 7 #_16 :-> 1
+                       5 8 #_17 :-> 2
+                       5 16 #_25 :-> 0
+                       ))
+
+(with-test
+  (defn position
+    "
+    Derive node position information for the given location.
+    It contains
+    - the side(s) (:0 .. :3, corners have 2)
+    - relation to corners - one of :corner, :next2corner, :inside.
+    - potentially :first or :last (withing the given square, i.e. spiral's loop)
+    "
+    [loc]
+   (let [subsquares (get-subsquares loc)
+         n (count subsquares)
+         dist-left (- loc (or (last subsquares) 0))
+         side (side-len n)
+         side-n (side-nr side dist-left)                        ; side = 0 ... 3
+         side-n-prev (side-nr side (dec dist-left))                        ; side = 0 ... 3
+         sideways (side-dist side dist-left)
+         max-dist (int (/ side 2))
+         first? (= 1 dist-left)
+         last? (> (count (get-subsquares (inc loc)))
+                  n)
+         ;before-corner? (:corner (position (inc loc)))
+         pos (case (- max-dist sideways)
+               0 :corner
+               1 :next2corner
+               :inside)]
+     (cond-> #{pos (keyword (str side-n))}
+             (= :corner pos) (conj (->kwd side-n-prev))
+             (= 1 loc) (conj :0 :1 :2 :3)
+             first? (conj :first)
+             last? (conj :last))))
+  (are [loc _ pos] (= pos (position loc))
+                   1 :-> #{:corner :first :last :0 :1 :2 :3}
+                   2 :-> #{:next2corner :first :0}
+                   3 :-> #{:corner :0 :1}
+                   4 :-> #{:next2corner :1}
+                   5 :-> #{:corner :1 :2}
+                   6 :-> #{:next2corner :2}
+                   9 :-> #{:corner :last :3 :0}
+                   10 :-> #{:next2corner :first :0}
+                   11 :-> #{:inside :0}
+                   12 :-> #{:next2corner :0}
+                   13 :-> #{:corner :0 :1}
+                   14 :-> #{:next2corner :1}
+                   15 :-> #{:inside :1}
+                   17 :-> #{:corner :1 :2}
+                   21 :-> #{:corner :2 :3}))
 ;
 ;(with-test
 ;  (defn make-sums
@@ -182,80 +225,164 @@
 ;  ;(is (= 5 (:sum (last (take 5 (make-sums))))))
 ;  )
 ;
-;(with-test
-;  (defn inflate-corners
-;   "wrap corner elements with nil so we get a ring with the same size as the next one"
-;   [prev-ring]
-;   (mapcat
-;     #(if (:corner (:pos %))
-;        [nil % nil]
-;        [%])
-;     prev-ring))
-;  (is (= [] (inflate-corners [])))
-;  (is (= [{:pos #{:inside}}] (vec (inflate-corners [{:pos #{:inside}}]))))
-;  (is (= [nil {:pos #{:corner}} nil] (vec (inflate-corners [{:pos #{:corner}}])))))
-;
-;(with-test
-;  (defn mk-uncles-seq [prev-ring]
-;   (->> prev-ring
-;        inflate-corners
-;        #_cycle
-;        #_(drop (dec (count prev-ring)))
-;        #_(partition 3 1)))
-;  (let [ring [{:loc 2 :pos #{:next2corner :first}}
-;              {:loc 3 :pos #{:corner}}
-;              {:loc 4 :pos #{:next2corner}}
-;              {:loc 5 :pos #{:corner}}
-;              {:loc 6 :pos #{:next2corner}}
-;              {:loc 7 :pos #{:corner}}
-;              {:loc 8 :pos #{:next2corner}}
-;              {:loc 9 :pos #{:corner :last}}
-;              ]]
-;    (is (empty? (mk-uncles-seq [])))
-;    (is (= [nil {:loc 9 :pos #{:corner :last}} {:loc 2 :pos #{:next2corner :first}}] (first (mk-uncles-seq ring))) "#10 neighbours with #9, #2")
-;    (is (= [{:loc 9 :pos #{:corner :last}} {:loc 2 :pos #{:next2corner :first}} {:loc 3 :pos #{:corner}}] (second (mk-uncles-seq ring))) "#11 neighbours with #9, #2, #3")
-;    (is (= [{:loc 2 :pos #{:next2corner :first}} {:loc 3 :pos #{:corner}} nil] (nth (mk-uncles-seq ring) 2)) "#12 neighbours with #2, #3")
-;    (is (= [nil {:loc 3 :pos #{:corner}} nil] (nth (mk-uncles-seq ring) 3)) "#13 neighbours with #3")
-;    (is (= [nil {:loc 3 :pos #{:corner}} {:loc 4 :pos #{:next2corner}}] (nth (mk-uncles-seq ring) 4)) "#14 neighbours with #3, #4")
-;    (is (= [nil {:loc 9 :pos #{:corner :last}} nil] (nth (mk-uncles-seq ring) 15)) "#25 neighbours with #9")
-;    ))
-;
-;(defn next-node [uncles-seq prev-ring curr-ring]            ;; TODO
-;  (let [father (or
-;                 (last curr-ring)
-;                 (last prev-ring))
-;        loc (inc (:loc father))
-;        pos (position loc)
-;        ring-idx (count curr-ring)
-;        brothers (condp apply [pos]
-;                   :first []
-;                   :last [father (first curr-ring)]
-;                   [father])
-;        uncles (nth uncles-seq ring-idx)
-;        sum (reduce
-;              +
-;              (map
-;                :sum
-;                (concat brothers uncles)))]
-;    {:loc loc, :sum sum, :pos pos}))
-;
-;(defn solve-xxx [uncles-seq prev-ring curr-ring]
-;  (let [node (next-node uncles-seq prev-ring curr-ring)
-;        last? (-> node :pos :last)
-;        curr-ring-updated (conj curr-ring node)]
-;    (cons
-;      node
-;      (lazy-seq
-;        (if last?
-;          (solve-xxx
-;            (mk-uncles-seq curr-ring-updated)
-;            curr-ring-updated
-;            [])
-;          (solve-xxx
-;            uncles-seq
-;            prev-ring
-;            curr-ring-updated))))))
-;
-;
+
+(def test-data-squares
+  [[{:loc 1 :pos #{:corner :first :last :0 :1 :2 :3}}]
+   [{:loc 2 :pos #{:next2corner :first :0}}
+    {:loc 3 :pos #{:corner :0 :1}}
+    {:loc 4 :pos #{:next2corner :1}}
+    {:loc 5 :pos #{:corner :1 :2}}
+    {:loc 6 :pos #{:next2corner :2}}
+    {:loc 7 :pos #{:corner :2 :3}}
+    {:loc 8 :pos #{:next2corner :3}}
+    {:loc 9 :pos #{:corner :last :0 :3}}]])
+
+(with-test
+  (defn- ->prev-square-idx
+    "Map the index in square N to the index of the closest neighbour in square N-1.
+    (The first location in a square (i.e. 1, 2, 10, 26, ...) has the idx 0.)
+    "
+    [prev-square pos idx]
+   (let [curr-ring-len (+ (count prev-square) 8)
+         side-len (/ curr-ring-len 4)
+         side (int (/ idx side-len))                        ; side = 0 ... 3
+         corner? (:corner pos)
+         corner-subtractions (* side 2)]
+     (- idx
+        corner-subtractions
+        (if corner?
+          1
+          0))))
+  (let [corner #{:corner}
+        next2corner #{:next2corner}
+        inside #{:inside}
+        square (->> (nth test-data-squares 1)
+                 ((juxt last butlast))
+                 (apply cons)
+                  cycle)]
+    (are [idx pos _ res] (= res (select-keys (nth square (->prev-square-idx (range 0 8) pos idx)) [:loc]))
+                          #_10 0 next2corner :-> {:loc 9}
+                          #_11 1 inside :-> {:loc 2}
+                          #_12 2 next2corner :-> {:loc 3}
+                          #_13 3 corner :-> {:loc 3}
+                          #_14 4 next2corner :-> {:loc 3}
+                          #_15 5 inside :-> {:loc 4}
+                          #_23 13 inside :-> {:loc 8}
+                          #_24 14 next2corner :-> {:loc 9}
+                          #_25 15 corner :-> {:loc 9}
+                          )))
+
+(defn- same-side-nodes [pos nodes]
+  (let [side-id (some identity
+                      ((juxt :0 :1 :2 :3) pos))]
+    (filter
+      (fn same-side
+        [node]
+        ((:pos node) side-id))
+      ; Remove duplicates needed due to the square that only has [{:loc 1}]
+      (dedupe nodes))))
+
+(defn ->locs [nodes]
+  (map #(select-keys % [:loc]) nodes))
+
+(with-test
+  (defn prev-square-neighbors
+    "Return all relevant neighbours from the previous square.
+    (The first location in a square (i.e. 1, 2, 10, 26, ...) has the idx 0.)
+    "
+    [prev-square pos idx]
+   (let [prev-idx (->prev-square-idx prev-square pos idx)
+         prev-square-len (count prev-square)
+         nodes (drop
+                 ;; offset so that e.g loc 9 is the first (as it neighbours loc 10)
+                 (dec prev-square-len)
+                 (cycle prev-square))
+         ; A node may neighbour with up to 3 nodes in the previous ring:
+         max-neighbours (cond
+                          (:first pos) 2
+                          :else 3)
+         triplet (take max-neighbours
+                       (drop
+                         (dec prev-idx)
+                         nodes))]
+     (if (:corner pos)
+       [(nth triplet 1)]                                    ; corners have only 1 neighbour
+       (same-side-nodes pos triplet))))
+  (let [->pos (fn [& kwds] (apply conj #{} kwds))
+        prev-square (second test-data-squares)]
+    (is (= [{:loc 1}] (->locs (prev-square-neighbors
+                         (first test-data-squares)
+                         #{:next2corner :1}
+                         2 #_loc_4))))
+    (are [idx pos _ res] (= res (->locs
+                                   (prev-square-neighbors prev-square pos idx)))
+                          #_10 0 (->pos :next2corner :0 :first)  :-> [{:loc 9} {:loc 2}]
+                          #_11 1 (->pos :inside :0)       :-> [{:loc 9} {:loc 2} {:loc 3}]
+                          #_12 2 (->pos :next2corner :0)  :-> [{:loc 2} {:loc 3}]
+                          #_13 3 (->pos :corner :0 :1)    :-> [{:loc 3}]
+                          #_14 4 (->pos :next2corner :1)  :-> [{:loc 3} {:loc 4}]
+                          #_15 5 (->pos :inside :1)       :-> [{:loc 3} {:loc 4} {:loc 5}]
+                          #_23 13 (->pos :inside :3)      :-> [{:loc 7} {:loc 8} {:loc 9}]
+                          #_24 14 (->pos :next2corner :3) :-> [{:loc 8} {:loc 9}]
+                          #_25 15 (->pos :corner :0 :3)   :-> [{:loc 9}]
+                          )))
+
+
+(defn create-next-node ;; TODO
+  [prev-square curr-square]
+  {:pre (not-empty prev-square)}
+  (let [father (or
+                 (last curr-square)
+                 (last prev-square))
+        loc (inc (:loc father))
+        pos (position loc)
+        idx (inc (count curr-square))
+        uncles (prev-square-neighbors prev-square pos idx)
+        ;; FIXME in square n=1,s=3 we can reach brothers on the diagonal too
+        brothers (condp apply [pos]
+                   :first []
+                   :last [father (first curr-square)]
+                   [father])
+        _ (println ">>> create-next-node loc:" loc
+                   pos
+                   "BRO>" brothers
+                   "UNC>" uncles)                           ;; FIXME rm
+        sum (reduce
+              +
+              (map
+                :sum
+                (concat brothers uncles)))]
+    {:loc loc, :sum sum, :pos pos}))
+
+(with-test
+  (defn solve-xxx
+   ([] (let [node {:loc 1 :sum 1 :pos #{:corner :0 :1 :2 :3 :first :last}}]
+         (cons node
+               (lazy-seq
+                 (solve-xxx [node] [])))))
+   ([prev-square curr-square]
+    (let [node (create-next-node prev-square curr-square)
+          last? (-> node :pos :last)
+          curr-square-updated (conj curr-square node)]
+      (cons
+        node
+        (lazy-seq
+          (if last?
+            (solve-xxx
+              curr-square-updated
+              [])
+            (solve-xxx
+              prev-square
+              curr-square-updated)))))))
+  (let [nodes (solve-xxx)]
+    (are [loc _ sum] (= sum (:sum (nth nodes (dec loc))))
+                     1  :-> 1
+                     2  :-> 1
+                     3  :-> 2
+                     4  :-> 4
+                     5  :-> 5
+                     )))
+
+
 
 (run-tests)
