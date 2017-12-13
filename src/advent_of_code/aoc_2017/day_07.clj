@@ -4,7 +4,6 @@
     [clojure.set :refer [difference]]
     [clojure.test :refer [with-test run-tests is are]]))
 
-"ulovosc (61) -> buzjgp, iimyluk"
 (def line-re #"(\w+) \((\d+)\)(?: -> ((?:\w+,? ?)+))?")
 
 (defn parse-line [line]
