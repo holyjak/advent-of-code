@@ -26,7 +26,7 @@
     [range t]
    (zero?
      (mod
-       t
+       t                                                    ;(inc t)
        (max (- (* 2 range) 2) 1))))
   (is (true? (caught-upon-leaving 1 0)))
   (is (true? (caught-upon-leaving 2 0)))
@@ -42,12 +42,14 @@
 (defn severity-of-catch [depth range]
   (* depth range))
 
-(defn severity-at-time [firewall depth-and-time]
-  (if-let [range (firewall depth-and-time)]
-    (if (caught-within range depth-and-time)
-      (severity-of-catch depth-and-time range)
-      0)
-    0))
+(defn severity-at-time
+  ([firewall depth-and-time] (severity-at-time firewall depth-and-time depth-and-time))
+  ([firewall depth time]
+   (if-let [range (firewall depth)]
+     (if (caught-upon-leaving range time)
+       (severity-of-catch depth range)
+       0)
+     0)))
 
 (defn trip-severity [firewall]
   (reduce
@@ -58,5 +60,15 @@
 
 (defn solve-part-1 []
   (trip-severity firewall))
+
+(defn trip-risk-free? [firewall delay]
+  (not-any?
+    #(> (severity-at-time firewall % (+ delay %)) 0)
+    (keys firewall)))
+
+(defn solve-part-2 []
+  (some
+    #(when (trip-risk-free? firewall %) %)
+    (range)))                                               ; 4192 too low
 
 (run-tests)

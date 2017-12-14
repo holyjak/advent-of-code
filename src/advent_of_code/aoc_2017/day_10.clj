@@ -118,4 +118,7 @@
   (is (= "3efbe78a8d82f29979031a4aa0b16a9d" (solve-part-2 "1,2,3")))
   (is (= "63960835bcdc130f0b66d7ff4f6a5a8e" (solve-part-2 "1,2,4"))))
 
+(defn knot-hash [^String input]
+  (solve-part-2 input))
+
 (run-tests)
