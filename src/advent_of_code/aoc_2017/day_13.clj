@@ -63,7 +63,9 @@
 
 (defn trip-risk-free? [firewall delay]
   (not-any?
-    #(> (severity-at-time firewall % (+ delay %)) 0)
+    (fn [depth] (>
+                  (severity-at-time firewall depth (+ delay depth 1))
+                  0))
     (keys firewall)))
 
 (defn solve-part-2 []
